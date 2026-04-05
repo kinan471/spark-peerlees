@@ -52,4 +52,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# باقي الإعدادات (CORS, REST_FRAMEWORK) كما هي لديك...
+CORS_ALLOWED_ORIGINS = [
+    "https://spark-peerlees-frontend.onrender.com", # رابط الفرونت إند الخاص بك على Render
+]
+
+# أو إذا أردت السماح للجميع مؤقتاً للتجربة:
+CORS_ALLOW_ALL_ORIGINS = True
