@@ -1,14 +1,18 @@
 from django.contrib import admin
-from .models import Product, Message, Setting, Visit, Order
+from .models import (
+    Product, BatteryCustomization, MaintenanceRequest, 
+    TradeInRequest, SiteSettings, ContactMessage, 
+    Order, Visitor, HeroSlider
+)
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name_ar', 'price', 'category', 'stock')
+    list_display = ('name_ar', 'price', 'category', 'stock', 'is_featured', 'is_spark_certified')
     search_fields = ('name_ar', 'name_tr')
     
-    # Priority for URL input
     fields = (
         'akakce_url', 
+        'is_featured',
         'name_ar', 
         'name_tr', 
         'price', 
@@ -16,28 +20,50 @@ class ProductAdmin(admin.ModelAdmin):
         'description_ar', 
         'description_tr', 
         'category', 
-        'stock'
+        'stock',
+        'power',
+        'range',
+        'weight',
+        'speed',
+        'is_spark_certified'
     )
-    
-    class Media:
-        js = ('admin/js/product_fetch.js',)
 
-@admin.register(Message)
-class MessageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'subject', 'created_at', 'replied')
-    list_filter = ('replied', 'created_at')
+@admin.register(SiteSettings)
+class SiteSettingsAdmin(admin.ModelAdmin):
+    list_display = ('site_name', 'whatsapp_number', 'contact_email')
 
-# REMOVED Settings from Admin (as requested)
-# @admin.register(Setting)
-# class SettingAdmin(admin.ModelAdmin):
-#     list_display = ('site_name', 'whatsapp_number', 'language')
+@admin.register(BatteryCustomization)
+class BatteryCustomizationAdmin(admin.ModelAdmin):
+    list_display = ('voltage', 'capacity', 'customer_name', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
 
-@admin.register(Visit)
-class VisitAdmin(admin.ModelAdmin):
-    list_display = ('path', 'created_at', 'user_agent')
-    list_filter = ('created_at',)
+@admin.register(MaintenanceRequest)
+class MaintenanceRequestAdmin(admin.ModelAdmin):
+    list_display = ('issue_type', 'customer_name', 'status', 'created_at')
+    list_filter = ('issue_type', 'status', 'created_at')
+
+@admin.register(TradeInRequest)
+class TradeInRequestAdmin(admin.ModelAdmin):
+    list_display = ('vehicle_type', 'brand_model', 'customer_name', 'status', 'created_at')
+    list_filter = ('vehicle_type', 'status', 'created_at')
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'is_read', 'replied', 'created_at')
+    list_filter = ('is_read', 'replied', 'created_at')
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer_name', 'customer_phone', 'status', 'created_at')
+    list_display = ('id', 'customer_name', 'status', 'total_price', 'created_at')
     list_filter = ('status', 'created_at')
+
+@admin.register(Visitor)
+class VisitorAdmin(admin.ModelAdmin):
+    list_display = ('ip_address', 'path', 'created_at')
+    list_filter = ('created_at',)
+
+@admin.register(HeroSlider)
+class HeroSliderAdmin(admin.ModelAdmin):
+    list_display = ('title_tr', 'order', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('title_ar', 'title_tr')

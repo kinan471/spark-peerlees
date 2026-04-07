@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- تعديلات الأمان ---
 SECRET_KEY = 'django-insecure-jqpx=9#ded@(vm*1bplc8cpmikz*qa1=tszo8m_5$ks==avvn@'
-DEBUG = False # عطل الـ Debug في الاستضافة
+DEBUG = True # عطل الـ Debug في الاستضافة
 ALLOWED_HOSTS = ['*'] # سيتم تخصيصه لاحقاً لدومينك
 
 # --- التطبيقات ---
@@ -36,6 +36,22 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'swarder_backend.urls'
 
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
 # --- قاعدة البيانات (SQLite حالياً) ---
 DATABASES = {
     'default': {
@@ -52,9 +68,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CORS_ALLOWED_ORIGINS = [
-    "https://spark-peerlees-frontend.onrender.com", # رابط الفرونت إند الخاص بك على Render
-]
-
-# أو إذا أردت السماح للجميع مؤقتاً للتجربة:
+# CORS
 CORS_ALLOW_ALL_ORIGINS = True
+

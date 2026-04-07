@@ -1,13 +1,26 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import Product, Message, Setting, Visit, Order
-from .serializers import ProductSerializer, MessageSerializer, SettingSerializer, VisitSerializer, OrderSerializer
+from .models import (
+    Product, BatteryCustomization, MaintenanceRequest, 
+    TradeInRequest, SiteSettings, ContactMessage, 
+    Order, Visitor, HeroSlider
+)
+from .serializers import (
+    ProductSerializer, 
+    BatteryCustomizationSerializer, 
+    MaintenanceRequestSerializer, 
+    TradeInRequestSerializer,
+    SiteSettingsSerializer,
+    ContactMessageSerializer,
+    OrderSerializer,
+    VisitorSerializer,
+    HeroSliderSerializer
+)
 from .scraper import scrape_product
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all().order_by('-created_at')
-    serializer_serializer = ProductSerializer # wait, serializer_class
     serializer_class = ProductSerializer
 
     @action(detail=False, methods=['post'], url_path='scrape')
@@ -40,33 +53,41 @@ class ProductViewSet(viewsets.ModelViewSet):
         
         return Response({'success': True, 'results': results})
 
-class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all().order_by('-created_at')
-    serializer_class = MessageSerializer
+class BatteryCustomizationViewSet(viewsets.ModelViewSet):
+    queryset = BatteryCustomization.objects.all().order_by('-created_at')
+    serializer_class = BatteryCustomizationSerializer
 
-class SettingViewSet(viewsets.ModelViewSet):
-    queryset = Setting.objects.all()
-    serializer_class = SettingSerializer
-    
-    def get_object(self):
-        return Setting.objects.get_or_create(id='default')[0]
-    
-    @action(detail=False, methods=['get', 'patch'], url_path='current')
-    def current(self, request):
-        setting = self.get_object()
-        if request.method == 'PATCH':
-            serializer = self.get_serializer(setting, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data)
-        
-        serializer = self.get_serializer(setting)
-        return Response(serializer.data)
+class MaintenanceRequestViewSet(viewsets.ModelViewSet):
+    queryset = MaintenanceRequest.objects.all().order_by('-created_at')
+    serializer_class = MaintenanceRequestSerializer
 
-class VisitViewSet(viewsets.ModelViewSet):
-    queryset = Visit.objects.all().order_by('-created_at')
-    serializer_class = VisitSerializer
+class TradeInRequestViewSet(viewsets.ModelViewSet):
+    queryset = TradeInRequest.objects.all().order_by('-created_at')
+    serializer_class = TradeInRequestSerializer
+
+class ContactMessageViewSet(viewsets.ModelViewSet):
+    queryset = ContactMessage.objects.all().order_by('-created_at')
+    serializer_class = ContactMessageSerializer
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all().order_by('-created_at')
     serializer_class = OrderSerializer
+
+class VisitorViewSet(viewsets.ModelViewSet):
+    queryset = Visitor.objects.all().order_by('-created_at')
+    serializer_class = VisitorSerializer
+
+class SiteSettingsViewSet(viewsets.ModelViewSet):
+    queryset = SiteSettings.objects.all()
+    serializer_class = SiteSettingsSerializer
+
+    def list(self, request, *args, **kwargs):
+        settings = SiteSettings.objects.first()
+        if not settings:
+            settings = SiteSettings.objects.create()
+        serializer = self.get_serializer(settings)
+        return Response(serializer.data)
+
+class HeroSliderViewSet(viewsets.ModelViewSet):
+    queryset = HeroSlider.objects.filter(is_active=True).order_by('order', '-created_at')
+    serializer_class = HeroSliderSerializer

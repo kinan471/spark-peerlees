@@ -1,29 +1,52 @@
 from rest_framework import serializers
-from .models import Product, Message, Setting, Visit, Order
+from .models import (
+    Product, BatteryCustomization, MaintenanceRequest, 
+    TradeInRequest, SiteSettings, ContactMessage, 
+    Order, Visitor, HeroSlider
+)
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
 
-class MessageSerializer(serializers.ModelSerializer):
+class SiteSettingsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Message
+        model = SiteSettings
         fields = '__all__'
 
-class SettingSerializer(serializers.ModelSerializer):
+class BatteryCustomizationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Setting
+        model = BatteryCustomization
         fields = '__all__'
 
-class VisitSerializer(serializers.ModelSerializer):
+class MaintenanceRequestSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Visit
+        model = MaintenanceRequest
+        fields = '__all__'
+
+class TradeInRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TradeInRequest
+        fields = '__all__'
+
+class ContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
         fields = '__all__'
 
 class OrderSerializer(serializers.ModelSerializer):
     product_details = ProductSerializer(source='product', read_only=True)
-    
     class Meta:
         model = Order
+        fields = '__all__'
+
+class VisitorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Visitor
+        fields = '__all__'
+
+class HeroSliderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HeroSlider
         fields = '__all__'

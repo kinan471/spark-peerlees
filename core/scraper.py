@@ -1,164 +1,186 @@
-import requests
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+import cloudscraper
 import json
 import re
 import time
 import random
 from urllib.parse import quote
 from django.conf import settings
+from bs4 import BeautifulSoup
 
+# --- إعدادات التمويه ---
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+]
+
+# قائمة البروكسيات - أضف البروكسيات الخاصة بك هنا
+# التنسيق: 'http://username:password@ip:port' أو 'http://ip:port'
+PROXY_LIST = [
+    # 'http://your_proxy_1',
+    # 'http://your_proxy_2',
 ]
 
 def scrape_product(url):
+    """
+    النسخة النهائية والمطورة:
+    1. تستخدم Playwright مع Stealth لتجاوز كشف البوتات.
+    2. تستخدم Proxy متغير لتجنب حظر الـ IP.
+    3. تستخدم Cloudscraper كخطة بديلة (Fallback).
+    """
+    html = ""
     last_error = ""
-    scraper_api_key = getattr(settings, 'SCRAPER_API_KEY', None)
     
-    for attempt in range(3):
-        try:
-            if scraper_api_key:
-                # Use standard proxy without rendering for speed. Metadata exists in HTML source.
-                proxy_url = f"https://api.scraperapi.com?api_key={scraper_api_key}&url={quote(url)}&country_code=tr"
-            else:
-                proxy_url = url 
+    # اختيار بروكسي عشوائي إذا كانت القائمة غير فارغة
+    selected_proxy = random.choice(PROXY_LIST) if PROXY_LIST else None
 
-            headers = {
-                'User-Agent': random.choice(USER_AGENTS),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Referer': 'https://www.google.com/'
-            }
-            response = requests.get(proxy_url, headers=headers, timeout=60)
+    # --- الطريقة الأولى: Playwright مع التخفي والبروكسي ---
+    try:
+        with sync_playwright() as p:
+            # إعدادات التشغيل لتجاوز الحماية
+            launch_args = [
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
             
-            if response.status_code != 200:
-                raise Exception(f"Request failed with status {response.status_code}")
+            launch_options = {
+                "headless": True,
+                "args": launch_args
+            }
+            
+            if selected_proxy:
+                launch_options["proxy"] = {"server": selected_proxy}
 
-            html = response.text
-            if not html or len(html) < 500:
-                raise Exception("Empty or blocked page received")
+            browser = p.chromium.launch(**launch_options)
+            
+            # إنشاء سياق متصفح واقعي
+            context = browser.new_context(
+                user_agent=random.choice(USER_AGENTS),
+                viewport={'width': 1920, 'height': 1080},
+                extra_http_headers={"Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7"}
+            )
+            
+            page = context.new_page()
+            
+            # تفعيل التخفي (Stealth)
+            stealth = Stealth()
+            stealth.apply_stealth_sync(page)
 
-            name = ""
-            price = 0.0
-            image = ""
-            description = ""
-            specifications = {}
+            # محاولة الدخول للموقع
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            
+            # محاكاة حركة بشرية (تأخير عشوائي وتمرير)
+            time.sleep(random.uniform(2, 4))
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
+            
+            # الانتظار حتى يظهر العنوان (دليل على نجاح التحميل)
+            try:
+                page.wait_for_selector('h1, .product-name', timeout=10000)
+            except:
+                pass 
 
-            # 1. JSON-LD Extraction (Primary for both Akakçe & Cimri)
-            ld_scripts = re.findall(r'<script(?:\s+type="application\/ld\+json"|[^>]*)>([\s\S]*?)</script>', html, re.IGNORECASE)
-            for script_content in ld_scripts:
+            html = page.content()
+            browser.close()
+            
+    except Exception as e:
+        last_error = f"Playwright/Proxy failed: {str(e)}"
+
+    # --- الطريقة الثانية: Cloudscraper (إذا فشل المتصفح أو كان المحتوى ناقصاً) ---
+    if not html or len(html) < 5000: # التحقق من طول المحتوى لضمان عدم تحميل صفحة خطأ
+        try:
+            scraper = cloudscraper.create_scraper(
+                browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
+            )
+            # استخدام البروكسي أيضاً مع cloudscraper إذا توفر
+            proxies = {"http": selected_proxy, "https": selected_proxy} if selected_proxy else None
+            response = scraper.get(url, timeout=30, proxies=proxies)
+            
+            if response.status_code == 200:
+                html = response.text
+        except Exception as e:
+            last_error += f" | Cloudscraper failed: {str(e)}"
+
+    if not html:
+        return {'success': False, 'message': f"Scraping Blocked: {last_error}"}
+
+    # --- مرحلة استخراج البيانات (BeautifulSoup) ---
+    soup = BeautifulSoup(html, 'lxml')
+    name, price, image, description = "", 0.0, "", ""
+    specifications = {}
+
+    # 1. استخراج بيانات JSON-LD (الطريقة الأدق)
+    ld_json = soup.find_all('script', type='application/ld+json')
+    for script in ld_json:
+        try:
+            if not script.string: continue
+            data = json.loads(script.string)
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                if '@graph' in item: items.extend(item['@graph'])
+                
+                if item.get('@type') in ['Product', 'ProductGroup']:
+                    name = name or item.get('name', '')
+                    img = item.get('image', '')
+                    if isinstance(img, list) and img: image = image or img[0]
+                    elif isinstance(img, str): image = image or img
+                    
+                    description = description or item.get('description', '')
+                    
+                    offers = item.get('offers')
+                    if offers:
+                        offer_list = offers if isinstance(offers, list) else [offers]
+                        for o in offer_list:
+                            p = o.get('price') or o.get('lowPrice')
+                            if p and not price:
+                                try:
+                                    p_str = str(p).replace(' ', '').replace('TL', '').replace('TRY', '')
+                                    p_str = p_str.replace('.', '').replace(',', '.') if ',' in p_str and '.' in p_str else p_str.replace(',', '.')
+                                    price = float(p_str)
+                                except: pass
+        except: continue
+
+    # 2. البحث عن العنوان والسعر عبر CSS Selectors (إذا فشل JSON-LD)
+    if not name:
+        h1 = soup.select_one('.p-v8 h1, h1#p-title, .pt_v8 h1, h1.product-name, .product-title')
+        if h1: name = h1.get_text(strip=True)
+
+    if not price or price == 0.0:
+        price_selectors = ['.pt_v8 .pb_v8', '.p_v8 b', '.lowest-price', '.current-price', '#price-value']
+        for sel in price_selectors:
+            p_tag = soup.select_one(sel)
+            if p_tag:
+                p_text = "".join(re.findall(r'[0-9,.]', p_tag.get_text()))
                 try:
-                    data = json.loads(script_content.strip())
-                    schemas = data if isinstance(data, list) else [data]
-                    for schema in schemas:
-                        if schema.get('@type') in ['Product', 'ProductGroup']:
-                            if not name: name = schema.get('name', '')
-                            if not image:
-                                img = schema.get('image', '')
-                                if isinstance(img, list) and img:
-                                    img = img[0]
-                                if isinstance(img, dict):
-                                    image = img.get('url', '')
-                                else:
-                                    image = img
-                            if not description: description = schema.get('description', '')
-                            
-                            if schema.get('offers'):
-                                offers = schema.get('offers')
-                                offer_list = offers if isinstance(offers, list) else [offers]
-                                for o in offer_list:
-                                    p = o.get('price') or o.get('lowPrice')
-                                    if p and not price:
-                                        try:
-                                            price = float(str(p).replace(',', '.'))
-                                        except: pass
+                    if ',' in p_text and '.' in p_text: p_text = p_text.replace('.', '').replace(',', '.')
+                    elif ',' in p_text: p_text = p_text.replace(',', '.')
+                    price = float(p_text)
+                    if price > 0: break
                 except: pass
 
-            # 2. Meta Tags (Stronger Fallback)
-            if not name:
-                match = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', html, re.IGNORECASE)
-                if match: name = match.group(1)
-            if not image:
-                match = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', html, re.IGNORECASE)
-                if match: image = match.group(1)
-            if not description:
-                match = re.search(r'<meta[^>]*property="og:description"[^>]*content="([^"]+)"', html, re.IGNORECASE)
-                if match: description = match.group(1).strip()
-            
-            # 3. Cimri Specific Fallbacks
-            if 'cimri.com' in url:
-                if not price:
-                    match = re.search(r'data-price="([^"]+)"', html)
-                    if match: 
-                        try: price = float(match.group(1))
-                        except: pass
-                
-            # 4. Fallback Regex for Price
-            if not price:
-                price_blocks = re.findall(r'class="[^"]*(?:price|pt_v8|s1a|lowest-price)[^"]*"[^>]*>([\s\S]*?)</span>', html, re.IGNORECASE)
-                for block in price_blocks:
-                    txt = re.sub(r'<[^>]*>', '', block).strip()
-                    p_str = "".join(re.findall(r'[0-9,.]', txt))
-                    if p_str:
-                        if ',' in p_str and '.' in p_str:
-                            p_str = p_str.replace('.', '').replace(',', '.')
-                        elif ',' in p_str:
-                            p_str = p_str.replace(',', '.')
-                        try:
-                            parsed = float(p_str)
-                            if parsed > 5:
-                                price = parsed
-                                break
-                        except: pass
+    # 3. استخراج المواصفات الفنية
+    for row in soup.select('tr, li'):
+        cols = row.select('td, th, span, div')
+        if len(cols) >= 2:
+            k = cols[0].get_text(strip=True).replace(':', '')
+            v = cols[1].get_text(strip=True)
+            if k and v and len(k) < 50:
+                specifications[k] = v
 
-            # 5. Specifications
-            specs_cont = re.search(r'<div[^>]*class="[^"]*(?:pt_v8|spec-list|p-detail)[^"]*"[^>]*>([\s\S]*?)</div>', html, re.IGNORECASE)
-            if specs_cont:
-                specs_html = specs_cont.group(1)
-                li_matches = re.findall(r'<li[^>]*>\s*<span[^>]*>([\s\S]*?)</span>\s*<span[^>]*>([\s\S]*?)</span>', specs_html, re.IGNORECASE)
-                for sm in li_matches:
-                    key = re.sub(r'[:：]|<[^>]*>', '', sm[0]).strip()
-                    val = re.sub(r'<[^>]*>', '', sm[1]).strip()
-                    if key and val and len(key) < 50:
-                        specifications[key] = val
-                
-                tr_matches = re.findall(r'<tr[^>]*>\s*<td[^>]*>([\s\S]*?)</td>\s*<td[^>]*>([\s\S]*?)</td>', specs_html, re.IGNORECASE)
-                for tm in tr_matches:
-                    key = re.sub(r'[:：]|<[^>]*>', '', tm[0]).strip()
-                    val = re.sub(r'<[^>]*>', '', tm[1]).strip()
-                    if key and val and len(key) < 50:
-                        specifications[key] = val
+    # تنظيف رابط الصورة
+    if image and isinstance(image, str) and not image.startswith('http'):
+        image = 'https:' + (image if image.startswith('//') else '//' + image)
 
-            if not name:
-                raise Exception("Could not parse product name")
+    if not name:
+        return {'success': False, 'message': "Blocked: Could not parse product details."}
 
-            # Final Image Sanitization (Fixing 'dict' error)
-            if image:
-                if isinstance(image, dict):
-                    image = image.get('url', '')
-                
-                if isinstance(image, str) and image:
-                    if not image.startswith('http'):
-                        image = 'https:' + (image if image.startswith('//') else '//' + image)
-
-            return {
-                'success': True,
-                'name': name,
-                'price': price,
-                'image': image,
-                'description': description,
-                'specifications': specifications
-            }
-
-        except Exception as e:
-            last_error = str(e)
-            if attempt < 2:
-                time.sleep(1)
-            
     return {
-        'success': False,
-        'message': f"Scraping failed: {last_error}"
+        'success': True,
+        'name': name,
+        'price': price,
+        'image': image,
+        'description': description or name,
+        'specifications': specifications
     }
