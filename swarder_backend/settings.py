@@ -69,7 +69,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # CORS
-CORS_ALLOW_ALL_ORIGINS = [
+CORS_ALLOWED_ORIGINS = [
     "https://spark-peerlees-frontend.onrender.com", # استبدله برابطك الفعلي
     "https://your-custom-domain.com",
 ]
